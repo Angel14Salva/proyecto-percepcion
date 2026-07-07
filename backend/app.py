@@ -102,17 +102,44 @@ def nms(boxes: np.ndarray, scores: np.ndarray, threshold: float = NMS_THRESHOLD)
 
 
 # ==========================
-# Preprocesamiento
+# Preprocesamiento (letterbox: mantiene proporción, rellena con gris)
 # ==========================
-def preprocess(image: Image.Image) -> np.ndarray:
-    # BILINEAR es notablemente más rápido que el LANCZOS por defecto de PIL
-    # y para un modelo de 320x320 en tiempo real la diferencia de calidad es imperceptible.
-    image = image.resize((INPUT_SIZE, INPUT_SIZE), Image.BILINEAR)
+LETTERBOX_COLOR = (114, 114, 114)  # gris estándar de YOLO
 
-    arr = np.asarray(image, dtype=np.float32) / 255.0
+
+def letterbox(image: Image.Image, size: int = INPUT_SIZE):
+    w, h = image.size
+    scale = min(size / w, size / h)
+    new_w, new_h = round(w * scale), round(h * scale)
+
+    resized = image.resize((new_w, new_h), Image.BILINEAR)
+
+    canvas = Image.new("RGB", (size, size), LETTERBOX_COLOR)
+    pad_x = (size - new_w) // 2
+    pad_y = (size - new_h) // 2
+    canvas.paste(resized, (pad_x, pad_y))
+
+    return canvas, scale, pad_x, pad_y
+
+
+def preprocess(canvas: Image.Image) -> np.ndarray:
+    arr = np.asarray(canvas, dtype=np.float32) / 255.0
     arr = arr.transpose(2, 0, 1)
     arr = np.ascontiguousarray(arr[np.newaxis, ...])
     return arr
+
+
+# ==========================
+# NMS por clase (evita que una detección de una clase suprima
+# a una detección real de otra clase solo por solaparse)
+# ==========================
+def nms_per_class(boxes: np.ndarray, scores: np.ndarray, class_ids: np.ndarray, threshold: float = NMS_THRESHOLD):
+    keep_all = []
+    for cid in np.unique(class_ids):
+        idxs = np.where(class_ids == cid)[0]
+        keep = nms(boxes[idxs], scores[idxs], threshold)
+        keep_all.extend(idxs[keep].tolist())
+    return keep_all
 
 
 # ==========================
@@ -121,7 +148,8 @@ def preprocess(image: Image.Image) -> np.ndarray:
 def run_inference(image: Image.Image):
     ancho_original, alto_original = image.size
 
-    tensor = preprocess(image)
+    canvas, scale, pad_x, pad_y = letterbox(image, INPUT_SIZE)
+    tensor = preprocess(canvas)
     outputs = session.run(None, {input_name: tensor})
 
     # outputs[0]: (1, 14, 2100) -> (2100, 14)
@@ -143,17 +171,21 @@ def run_inference(image: Image.Image):
 
     cx, cy, w, h = boxes_xywh[:, 0], boxes_xywh[:, 1], boxes_xywh[:, 2], boxes_xywh[:, 3]
 
-    scale_x = ancho_original / INPUT_SIZE
-    scale_y = alto_original / INPUT_SIZE
+    # Coordenadas en el canvas 320x320 con letterbox -> quitamos el padding
+    # y des-escalamos al tamaño real de la imagen original.
+    x1 = (cx - w / 2 - pad_x) / scale
+    y1 = (cy - h / 2 - pad_y) / scale
+    x2 = (cx + w / 2 - pad_x) / scale
+    y2 = (cy + h / 2 - pad_y) / scale
 
-    x1 = (cx - w / 2) * scale_x
-    y1 = (cy - h / 2) * scale_y
-    x2 = (cx + w / 2) * scale_x
-    y2 = (cy + h / 2) * scale_y
+    x1 = np.clip(x1, 0, ancho_original)
+    y1 = np.clip(y1, 0, alto_original)
+    x2 = np.clip(x2, 0, ancho_original)
+    y2 = np.clip(y2, 0, alto_original)
 
     boxes = np.stack([x1, y1, x2, y2], axis=1)
 
-    keep = nms(boxes, confidences, NMS_THRESHOLD)
+    keep = nms_per_class(boxes, confidences, class_ids, NMS_THRESHOLD)
 
     detecciones = []
     for i in keep:

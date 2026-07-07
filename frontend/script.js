@@ -3,12 +3,8 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const result = document.getElementById("result");
 
-// TODO: reemplaza esta URL por la de tu servicio backend en Render
-// (te la da Render al terminar el deploy, formato https://<nombre-servicio>.onrender.com)
 const API = "https://clasificador-residuos-backend.onrender.com/predict";
 
-// Pequeño margen entre detecciones consecutivas (ms). En 0 va a máxima
-// velocidad posible (limitada solo por la latencia real del backend).
 const MIN_DELAY_MS = 0;
 
 navigator.mediaDevices
@@ -26,8 +22,6 @@ video.addEventListener("loadedmetadata", () => {
 });
 
 const tempCanvas = document.createElement("canvas");
-tempCanvas.width = 320;
-tempCanvas.height = 320;
 const tempCtx = tempCanvas.getContext("2d");
 
 function drawDetections(detections) {
@@ -38,16 +32,13 @@ function drawDetections(detections) {
         return;
     }
 
-    const scaleX = video.videoWidth / 320;
-    const scaleY = video.videoHeight / 320;
-
     result.innerHTML = "";
 
     detections.forEach((det) => {
-        const x1 = det.bbox[0] * scaleX;
-        const y1 = det.bbox[1] * scaleY;
-        const x2 = det.bbox[2] * scaleX;
-        const y2 = det.bbox[3] * scaleY;
+        const x1 = det.bbox[0];
+        const y1 = det.bbox[1];
+        const x2 = det.bbox[2];
+        const y2 = det.bbox[3];
 
         ctx.strokeStyle = "lime";
         ctx.lineWidth = 4;
@@ -62,7 +53,9 @@ function drawDetections(detections) {
 }
 
 async function detectLoop() {
-    tempCtx.drawImage(video, 0, 0, 320, 320);
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
+    tempCtx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
 
     tempCanvas.toBlob(
         async (blob) => {

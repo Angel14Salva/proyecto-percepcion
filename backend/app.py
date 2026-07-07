@@ -17,16 +17,16 @@ CONF_THRESHOLD = 0.5
 NMS_THRESHOLD = 0.45
 
 CLASSES = {
-    0: "battery",
-    1: "biological",
-    2: "cardboard",
-    3: "clothes",
-    4: "glass",
+    0: "batería",
+    1: "residuo orgánico",
+    2: "cartón",
+    3: "ropa",
+    4: "vidrio",
     5: "metal",
-    6: "paper",
-    7: "plastic",
-    8: "sanitary waste and toothbrushes",
-    9: "shoes",
+    6: "papel",
+    7: "plástico",
+    8: "residuo sanitario / cepillo de dientes",
+    9: "zapatos",
 }
 
 # ==========================

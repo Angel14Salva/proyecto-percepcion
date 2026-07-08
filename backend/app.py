@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 # ==========================
 MODEL_PATH = "best.onnx"
 INPUT_SIZE = 320
-CONF_THRESHOLD = 0.35
+CONF_THRESHOLD = 0.55
 NMS_THRESHOLD = 0.35
 
 CLASSES = {
